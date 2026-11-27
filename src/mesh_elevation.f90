@@ -1,5 +1,6 @@
 module mesh_elevation
     use iso_fortran_env, only: real64
+    use ieee_arithmetic, only: ieee_is_finite
     implicit none
     private
     public :: convert_mesh
@@ -11,6 +12,8 @@ contains
         integer :: cell, side, i, j, id, a, b, low, high, edge, nedge, first, slot
         integer, allocatable :: conn(:,:), head(:), endpoint(:), next(:), first_node(:)
         real(real64), allocatable :: xy(:,:)
+        real(real64) :: point(2)
+        logical, allocatable :: seen(:)
 
         select case (command_argument_count())
         case (0)
@@ -35,10 +38,15 @@ contains
         read(unit,*) nvertex, nelem
         if (nvertex < 3 .or. nelem < 1) error stop 'Empty triangle mesh'
         local_size = (order+1)*(order+2)/2
-        allocate(xy(2,nvertex+(local_size-3)*nelem), conn(local_size,nelem))
+        allocate(xy(2,nvertex+(local_size-3)*nelem), conn(local_size,nelem), seen(nvertex))
+        seen = .false.
         do i = 1, nvertex
-            read(unit,*) id, xy(:,i)
-            if (id /= i) error stop 'Expected consecutive vertex IDs in input order'
+            read(unit,*) id, point
+            if (id < 1 .or. id > nvertex) error stop 'Vertex ID outside mesh'
+            if (seen(id)) error stop 'Repeated vertex ID'
+            if (.not.all(ieee_is_finite(point))) error stop 'Non-finite vertex coordinates'
+            xy(:,id) = point
+            seen(id) = .true.
         end do
         do cell = 1, nelem
             read(unit,*) id, conn(1:3,cell)

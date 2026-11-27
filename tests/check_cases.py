@@ -14,6 +14,14 @@ def check_converter(order, binary, tmp):
     target = tmp / f"elevated_p{order}.mes"
     subprocess.run([binary, source, target], check=True)
     lines = target.read_text().splitlines()
+    # Connectivity refers to vertex IDs even if the coordinate records are reordered.
+    original = source.read_text().splitlines()
+    nvertex = int(original[0].split()[0])
+    reordered = tmp / "reordered.mes"
+    reordered.write_text("\n".join([original[0], *reversed(original[1:1+nvertex]), *original[1+nvertex:]]) + "\n")
+    other = tmp / "from-reordered.mes"
+    subprocess.run([binary, reordered, other], check=True)
+    assert other.read_bytes() == target.read_bytes()
     nnode, nelm = map(int, lines[0].split())
     assert (nnode, nelm) == ((25 if order == 2 else 49), 8)
     cells = [list(map(int, row.split()[1:])) for row in lines[1+nnode:]]
