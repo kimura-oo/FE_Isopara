@@ -1,0 +1,11 @@
+name: Solver regression
+on: [push, pull_request]
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y gfortran
+      - run: python3 tests/check_cases.py
+        env:
+          FFLAGS: -O1 -g -ffree-line-length-none -fcheck=all
