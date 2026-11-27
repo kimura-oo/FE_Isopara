@@ -16,11 +16,11 @@ finish() {
 trap finish EXIT
 {
     printf 'launch '
-    printf '%q ' "$root/run_case.sh" "$@"
+    LC_ALL=C printf '%q ' "$root/run_case.sh" "$@"
     printf '\nbuild '
-    printf '%q ' "$root/build.sh" "$solver" "$run/bin"
-    printf '\nexecute cd %q && %q\n' "$run/work" "$run/bin/$solver"
-    printf 'FC=%q FFLAGS=%q LDFLAGS=%q SDKROOT=%q\n' "${FC:-gfortran}" "${FFLAGS:--O2 -ffree-line-length-none}" "${LDFLAGS:-}" "${SDKROOT:-}"
+    LC_ALL=C printf '%q ' "$root/build.sh" "$solver" "$run/bin"
+    LC_ALL=C printf '\nexecute cd %q && %q\n' "$run/work" "$run/bin/$solver"
+    LC_ALL=C printf 'FC=%q FFLAGS=%q LDFLAGS=%q SDKROOT=%q\n' "${FC:-gfortran}" "${FFLAGS:--O2 -ffree-line-length-none}" "${LDFLAGS:-}" "${SDKROOT:-}"
     "${FC:-gfortran}" --version | head -n 1
     if git -C "$root" rev-parse HEAD >/dev/null 2>&1; then
         git -C "$root" rev-parse HEAD

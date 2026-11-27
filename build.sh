@@ -52,7 +52,7 @@ for name in "${selected[@]}"; do
     sources "$name"
     mkdir "$name"
     compile=("$fc" "${flags[@]}" "${sdk[@]}" "${files[@]}" "${ldflags[@]}" -o solver)
-    printf '%q ' "${compile[@]}"
+    LC_ALL=C printf '%q ' "${compile[@]}"
     printf '\n'
     (cd "$name" && "${compile[@]}")
     mv "$name/solver" "$dest/$name"
