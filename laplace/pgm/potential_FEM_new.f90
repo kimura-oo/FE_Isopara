@@ -67,11 +67,10 @@ end program main
 subroutine datain
 ! -------------------------------------------------------------------------------
 	use indata
+      use laplace_boundary, only: read_edge_conditions
 	implicit none
 	integer :: i, j, k, n, m
 	character(100) :: mesfile, bdcfile, outfile, out2file, integfile
-	character(20) :: bc_type_str ! àÍéûìIÇ»ï∂éöóÒïœêî
-	integer :: n_vel_in, n_vel_wall, temp_n1, temp_n2
 
 	mgp = 3 ! Number of integration points
 
@@ -95,39 +94,10 @@ subroutine datain
 	read(10,*) ( m, ( nc(i,m), i = 1, 3 ), j = 1, nelm)
 	close(10)
 
-	! READ NEW BOUNDARY CONDITION FILE (mesh.bc)
-	! Potential
-	read(11,*) n_potential_edges, bc_type_str
-	allocate(potential_nodes(2, n_potential_edges), potential_values(n_potential_edges))
-	do i = 1, n_potential_edges
-		read(11,*) j, potential_nodes(1,i), potential_nodes(2,i), potential_values(i)
-	end do
-
-	! Velocity (Inlet and Wall)
-	read(11,*) ! Skip empty line
-	read(11,*) n_vel_in, bc_type_str
-	read(11,*) ! Skip empty line
-	read(11,*) n_vel_wall, bc_type_str
-	
-	n_velocity_edges = n_vel_in + n_vel_wall
-	allocate(velocity_nodes(2, n_velocity_edges), velocity_values(n_velocity_edges))
-
-	! Read inlet velocity
-	rewind(11)
-	read(11,*) j, bc_type_str; do i = 1, j; read(11,*); end do; read(11,*)
-	read(11,*) n_vel_in, bc_type_str
-	do i = 1, n_vel_in
-		read(11,*) j, velocity_nodes(1,i), velocity_nodes(2,i), velocity_values(i)
-	end do
-
-	! Read wall velocity
-	read(11,*) ! Skip empty line
-	read(11,*) n_vel_wall, bc_type_str
-	do i = 1, n_vel_wall
-		read(11,*) j, velocity_nodes(1, i + n_vel_in), velocity_nodes(2, i + n_vel_in), velocity_values(i + n_vel_in)
-	end do
-
-	close(11)
+	call read_edge_conditions(11,2,node,potential_nodes,potential_values,velocity_nodes,velocity_values)
+      n_potential_edges = size(potential_values)
+      n_velocity_edges = size(velocity_values)
+      close(11)
 
 	! Dynamic Memory Allocation
 	allocate( phi(node), rhs(node), ea(node,node) )
@@ -240,7 +210,7 @@ subroutine sweep  ! Solve Linear-Systems (Gauss Elimination)
 	do i = 1, node
 		if( dabs(ea(i,i)) <= 1.0d-12 ) then
 			write(6,*) 'Diagonal Value',i,'is ZERO or too small!'
-			stop
+			error stop 1
 		end if
 
 		ai = 1.0d0 / ea(i,i)
@@ -334,7 +304,7 @@ end subroutine sweep
                   DetJ = dxdxi(1,1) * dxdxi(2,2) - dxdxi(1,2) * dxdxi(2,1)
 
 			if ( DetJ <= 0.0d0 ) then
-				write(*,*) 'error in J' , m ,ig, DetJ; stop
+				write(*,*) 'error in J' , m ,ig, DetJ; error stop 1
 			else
 				tmp = 1.0d0 / DetJ
                         jac(ig,m) = DetJ

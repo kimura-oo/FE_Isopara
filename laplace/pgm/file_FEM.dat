@@ -1,6 +1,8 @@
 ../dat/mesh_test_quad/mesh_test_quad.mes
-../dat/mesh_test_quad/bc_quad_simple.bc
+../dat/mesh_test_quad/bc_quad_9.bc
 ../res/mesh_test_quad/FEM.res
+../res/mesh_test_quad/FEM_uchigawa.res
+../res/mesh_test_quad/integration_point.res
 
 ../dat/mesh_test/mesh_test.mes
 ../dat/mesh_test/mesh_test.bc

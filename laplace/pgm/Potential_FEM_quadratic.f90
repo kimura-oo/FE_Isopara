@@ -64,11 +64,11 @@ end program main
 subroutine datain
 ! -------------------------------------------------------------------------------
 	use indata
+      use laplace_boundary, only: read_edge_conditions
 	implicit none
 	integer :: i, j, n, m
 	character(100) :: mesfile, bdcfile, outfile, out2file, integfile
-	character(20) :: bc_type_str
-	integer :: n_vel_in, n_vel_wall
+
 
 	mgp = 3 ! Number of integration points for quadratic elements
 
@@ -94,36 +94,10 @@ subroutine datain
 	read(10,*) ( m, ( nc(i,m), i = 1, 6 ), j = 1, nelm) ! MODIFIED for 6 nodes
 	close(10)
 
-	! READ BOUNDARY CONDITION FILE (3 nodes per edge for quadratic)
-	read(11,*) n_potential_edges, bc_type_str
-	allocate(potential_nodes(3, n_potential_edges), potential_values(n_potential_edges)) ! MODIFIED
-	do i = 1, n_potential_edges
-		read(11,*) j, potential_nodes(1,i), potential_nodes(2,i), potential_nodes(3,i), potential_values(i) ! MODIFIED
-	end do
-
-      read(11,*) ! Skip empty line
-	read(11,*) n_vel_in, bc_type_str
-      read(11,*) ! Skip empty line
-	read(11,*) n_vel_wall, bc_type_str
-	
-	n_velocity_edges = n_vel_in + n_vel_wall
-	allocate(velocity_nodes(3, n_velocity_edges), velocity_values(n_velocity_edges)) ! MODIFIED
-
-	rewind(11)
-	read(11,*) j, bc_type_str; do i = 1, j; read(11,*); end do; read(11,*)
-	read(11,*) n_vel_in, bc_type_str
-	do i = 1, n_vel_in
-		read(11,*) j, velocity_nodes(1,i), velocity_nodes(2,i), velocity_nodes(3,i), velocity_values(i) ! MODIFIED
-	end do
-
-      read(11,*) ! Skip empty line
-	read(11,*) n_vel_wall, bc_type_str
-	do i = 1, n_vel_wall
-		read(11,*) j, velocity_nodes(1, i + n_vel_in), velocity_nodes(2, i + n_vel_in), &
-                     velocity_nodes(3, i + n_vel_in), velocity_values(i + n_vel_in) ! MODIFIED
-	end do
-
-	close(11)
+	call read_edge_conditions(11,3,node,potential_nodes,potential_values,velocity_nodes,velocity_values)
+      n_potential_edges = size(potential_values)
+      n_velocity_edges = size(velocity_values)
+      close(11)
 
 	! Dynamic Memory Allocation
 	allocate( phi(node), rhs(node), ea(node,node) )
@@ -221,7 +195,7 @@ subroutine sweep  ! Solve Linear-Systems (Gauss Elimination)
 	do i = 1, node
 		if( dabs(ea(i,i)) <= 1.0d-12 ) then
 			write(6,*) 'Diagonal Value',i,'is ZERO or too small!'
-			stop
+			error stop 1
 		end if
 
 		ai = 1.0d0 / ea(i,i)
@@ -254,7 +228,7 @@ subroutine makeSSF ! MODIFIED for Quadratic Elements
 	integer, dimension(6) :: n_local
 	double precision :: DetJ, tmp
 	double precision, allocatable :: dxdxi(:,:), dxidx(:,:)
-      double precision, allocatable :: sqd(:,:,:), sq(:,:)
+      double precision, allocatable :: sqd(:,:,:)
       double precision :: L1, L2, L3
 
 	allocate( dxdxi(2,2), dxidx(2,2), sqd(2,6,mgp) )
@@ -267,14 +241,6 @@ subroutine makeSSF ! MODIFIED for Quadratic Elements
             L2 = xi_hat(ig)
             L3 = eta_hat(ig)
             L1 = 1.0d0 - L2 - L3
-
-            sq(1,ig) = L1 * (2.0d0 * L1 - 1.0d0)
-            sq(2,ig) = L2 * (2.0d0 * L2 - 1.0d0)
-            sq(3,ig) = L3 * (2.0d0 * L3 - 1.0d0)
-
-            sq(4,ig) = 4.0d0 * L1 * L2
-            sq(5,ig) = 4.0d0 * L2 * L3
-            sq(6,ig) = 4.0d0 * L3 * L1
 
             ! Derivatives of shape functions w.r.t. xi (L2) and eta (L3)
             ! dN/d_xi = (dN/dL1)*(-1) + (dN/dL2)*(1)
@@ -304,7 +270,7 @@ subroutine makeSSF ! MODIFIED for Quadratic Elements
 			
             DetJ = dxdxi(1,1) * dxdxi(2,2) - dxdxi(1,2) * dxdxi(2,1)
 			if ( DetJ <= 0.0d0 ) then
-				write(*,*) 'error in J' , m ,ig, DetJ; stop
+				write(*,*) 'error in J' , m ,ig, DetJ; error stop 1
 			else
 				tmp = 1.0d0 / DetJ
                 jac(ig,m) = DetJ

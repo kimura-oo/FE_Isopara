@@ -62,11 +62,11 @@ end program main
 subroutine datain
 ! -------------------------------------------------------------------------------
 	use indata
+      use laplace_boundary, only: read_edge_conditions
 	implicit none
 	integer :: i, j, n, m
 	character(100) :: mesfile, bdcfile, outfile, out2file, integfile
-	character(20) :: bc_type_str
-	integer :: n_vel_in, n_vel_wall
+
 
 	mgp = 3 ! 3-point quadrature is suitable for quadratic elements
 
@@ -92,53 +92,10 @@ subroutine datain
 	end do
 	close(10)
 
-	! READ BOUNDARY CONDITION FILE (3 nodes per edge for quadratic)
-	read(11,*) n_potential_edges, bc_type_str
-      if (n_potential_edges > 0) then
-	      allocate(potential_nodes(3, n_potential_edges), potential_values(n_potential_edges))
-	      do i = 1, n_potential_edges
-		      read(11,*) j, potential_nodes(1,i), potential_nodes(2,i), potential_nodes(3,i), potential_values(i)
-	      end do
-      else ! Allocate dummy array if no conditions are present
-            allocate(potential_nodes(3, 1), potential_values(1))
-      end if
-
-      read(11,*, end=111) ! Read until EOF or next line
-111 continue
-	read(11,*, end=112) n_vel_in, bc_type_str
-112 continue
-      read(11,*, end=113)
-113 continue
-	read(11,*, end=114) n_vel_wall, bc_type_str
-114 continue
-	
-	n_velocity_edges = n_vel_in + n_vel_wall
-      if (n_velocity_edges > 0) then
-	      allocate(velocity_nodes(3, n_velocity_edges), velocity_values(n_velocity_edges))
-      else
-            allocate(velocity_nodes(3, 1), velocity_values(1))
-      end if
-
-	rewind(11)
-	read(11,*, end=211) j, bc_type_str
-      do i = 1, n_potential_edges
-            read(11,*)
-      end do
-211 continue
-      read(11,*, end=212)
-	read(11,*, end=212) j, bc_type_str
-	      do i = 1, n_vel_in
-		      read(11,*) j, velocity_nodes(1,i), velocity_nodes(2,i), velocity_nodes(3,i), velocity_values(i)
-	      end do
-212 continue
-      read(11,*, end=213)
-	read(11,*, end=213) j, bc_type_str
-	      do i = 1, n_vel_wall
-		      read(11,*) j, velocity_nodes(1, i + n_vel_in), velocity_nodes(2, i + n_vel_in), &
-                              velocity_nodes(3, i + n_vel_in), velocity_values(i + n_vel_in)
-	      end do
-213 continue
-	close(11)
+	call read_edge_conditions(11,3,node,potential_nodes,potential_values,velocity_nodes,velocity_values)
+      n_potential_edges = size(potential_values)
+      n_velocity_edges = size(velocity_values)
+      close(11)
 
 	! Dynamic Memory Allocation
 	allocate( phi(node), rhs(node), ea(node,node) )
@@ -324,7 +281,7 @@ subroutine sweep
 
 	do i = 1, node
 		if( dabs(ea(i,i)) <= 1.0d-12 ) then
-			write(6,*) 'Diagonal Value',i,'is ZERO or too small!'; stop
+			write(6,*) 'Diagonal Value',i,'is ZERO or too small!'; error stop 1
 		end if
 		ai = 1.0d0 / ea(i,i)
 		phi(i) = phi(i) * ai
@@ -358,14 +315,12 @@ subroutine makeSSF
     double precision :: N_vals(6)    ! Shape function values N(L1,L2,L3)
     double precision :: dNdL(6,3)    ! dN/dL: Derivatives of N w.r.t. Area Coords
     double precision, parameter :: dLdxi(3,2) = reshape([ &
-        -1.0d0, -1.0d0, & ! dL1/d_xi, dL1/d_eta
-         1.0d0,  0.0d0, & ! dL2/d_xi, dL2/d_eta
-         0.0d0,  1.0d0], & ! dL3/d_xi, dL3/d_eta
+        -1.0d0, 1.0d0, 0.0d0, & ! dL/d_xi
+        -1.0d0, 0.0d0, 1.0d0], & ! dL/d_eta
          shape=[3,2])
     double precision :: dNdxi(6,2)   ! dN/d_xi, dN/d_eta: Final derivatives in reference coords
 
 	allocate( dxdxi(2,2), dxidx(2,2), sqd(2,6,mgp) )
-	call set_integration_points(mgp, xi_hat, eta_hat, sg)
 
 	do m = 1, nelm
         n_local = nc(:,m)
@@ -415,7 +370,7 @@ subroutine makeSSF
 			
             DetJ = dxdxi(1,1) * dxdxi(2,2) - dxdxi(1,2) * dxdxi(2,1)
 			if ( DetJ <= 1.0d-12 ) then
-				write(*,*) 'error: Jacobian is zero or negative at element, igp:', m, ig, DetJ; stop
+				write(*,*) 'error: Jacobian is zero or negative at element, igp:', m, ig, DetJ; error stop 1
 			else
 				tmp = 1.0d0 / DetJ
                 jac(ig,m) = DetJ
@@ -451,7 +406,7 @@ subroutine set_line_integration_points(mgp_line, s_hat, w_hat)
         w_hat(1) = 2.0d0
     else
         write(*,*) 'Error: Unsupported number of line integration points:', mgp_line
-        stop
+        error stop 1
     end if
 end subroutine set_line_integration_points
 !
